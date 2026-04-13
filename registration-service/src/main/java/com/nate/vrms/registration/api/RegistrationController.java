@@ -1,0 +1,70 @@
+package com.nate.vrms.registration.api;
+
+import com.nate.vrms.registration.api.dto.RegistrationResponse;
+import com.nate.vrms.registration.api.dto.RegisterVehicleRequest;
+import com.nate.vrms.registration.api.dto.RenewRegistrationRequest;
+import com.nate.vrms.registration.api.mapper.RegistrationApiMapper;
+import com.nate.vrms.registration.application.service.RegistrationCrudService;
+import com.nate.vrms.registration.application.service.RegistrationOrchestrator;
+import com.nate.vrms.registration.domain.model.Registration;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/registrations")
+public class RegistrationController {
+
+    private final RegistrationOrchestrator orchestrator;
+    private final RegistrationCrudService crud;
+    private final RegistrationRepresentationAssembler assembler;
+
+    public RegistrationController(RegistrationOrchestrator orchestrator, RegistrationCrudService crud, RegistrationRepresentationAssembler assembler) {
+        this.orchestrator = orchestrator;
+        this.crud = crud;
+        this.assembler = assembler;
+    }
+
+    @PostMapping
+    public ResponseEntity<?> register(@RequestBody @Valid RegisterVehicleRequest req) {
+        Registration reg = orchestrator.register(req.vehicleId(), req.ownerId(), req.agentId(), req.plate(), req.expiry());
+        var response = RegistrationApiMapper.toResponse(reg);
+        return ResponseEntity.ok(assembler.toModel(response));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> get(@PathVariable String id) {
+        var response = RegistrationApiMapper.toResponse(crud.get(id));
+        return ResponseEntity.ok(assembler.toModel(response));
+    }
+
+    @GetMapping
+    public ResponseEntity<?> list() {
+        List<RegistrationResponse> responses = crud.list().stream()
+                .map(RegistrationApiMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(assembler.toCollectionModel(responses));
+    }
+
+    @PostMapping("/{id}/renew")
+    public ResponseEntity<?> renew(@PathVariable String id, @RequestBody @Valid RenewRegistrationRequest req) {
+        var reg = crud.renew(id, req.newExpiry());
+        var response = RegistrationApiMapper.toResponse(reg);
+        return ResponseEntity.ok(assembler.toModel(response));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<?> cancel(@PathVariable String id) {
+        var reg = crud.cancel(id);
+        var response = RegistrationApiMapper.toResponse(reg);
+        return ResponseEntity.ok(assembler.toModel(response));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> delete(@PathVariable String id) {
+        crud.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}
